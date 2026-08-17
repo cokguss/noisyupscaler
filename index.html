@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <title>Noisy Uspcaler - Perbesar gambar 4x tanpa pecah</title>
+    <meta
+      name="description"
+      content="Noisy Uspcaler memperbesar resolusi gambar hingga 4x dengan rekonstruksi detail berbasis AI. Gratis, tanpa daftar akun, langsung dari browser."
+    />
+    <meta property="og:title" content="Noisy Uspcaler - Perbesar gambar 4x tanpa pecah" />
+    <meta
+      property="og:description"
+      content="Perbesar resolusi gambar hingga 4x dengan rekonstruksi detail berbasis AI."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script>
+      // Tetapkan tema & bahasa sebelum paint pertama supaya tidak ada kedipan.
+      (function () {
+        var el = document.documentElement;
+        try {
+          var savedTheme = localStorage.getItem('noisy-theme');
+          var prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+          el.dataset.theme = savedTheme || (prefersLight ? 'light' : 'dark');
+        } catch (e) {
+          el.dataset.theme = 'dark';
+        }
+        try {
+          var savedLang = localStorage.getItem('noisy-lang');
+          if (savedLang !== 'id' && savedLang !== 'en') {
+            // Ikuti bahasa peramban: apa pun yang berawalan "id" dianggap Indonesia.
+            savedLang = (navigator.language || 'id').toLowerCase().indexOf('id') === 0 ? 'id' : 'en';
+          }
+          el.lang = savedLang;
+        } catch (e) {
+          el.lang = 'id';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

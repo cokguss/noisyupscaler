@@ -1,0 +1,263 @@
+@import 'tailwindcss';
+
+@import '@fontsource-variable/geist/wght.css';
+@import '@fontsource-variable/geist-mono';
+
+/* ===========================================================
+   Noisy Uspcaler - design tokens
+
+   Tema dikunci di level halaman lewat [data-theme] pada <html>.
+   Tidak ada section yang membalik mode sendiri.
+
+   Skala radius (dipatuhi di seluruh halaman):
+     tombol & chip  -> pill (rounded-full)
+     panel & kartu  -> 16px (rounded-2xl)
+     input & tile   -> 10px (rounded-[10px])
+
+   Aksen tunggal: acid lime. Isian aksen memakai warna yang sama di
+   kedua mode agar identitas merek tetap konsisten; hanya aksen
+   untuk teks yang digelapkan di mode terang demi kontras WCAG AA.
+   =========================================================== */
+
+:root,
+[data-theme='dark'] {
+  --bg: #0a0a0b;
+  --bg-2: #0f0f11;
+  --surface: #15151a;
+  --surface-2: #1c1c22;
+  --line: rgb(255 255 255 / 0.09);
+  --line-strong: rgb(255 255 255 / 0.17);
+  --text: #f4f4f5;
+  --text-2: #a1a1aa;
+  --text-3: #74747d;
+  --accent: #c3f53c;
+  --accent-ink: #cef659;
+  --accent-fg: #0a0a0b;
+  --accent-soft: rgb(195 245 60 / 0.12);
+  --danger: #ff8a7a;
+  --shadow-panel: 0 24px 70px rgb(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bg: #fbfbfa;
+  --bg-2: #f3f3f1;
+  --surface: #ffffff;
+  --surface-2: #f7f7f5;
+  --line: rgb(9 9 11 / 0.1);
+  --line-strong: rgb(9 9 11 / 0.2);
+  --text: #18181b;
+  --text-2: #55555f;
+  --text-3: #71717a;
+  --accent: #bdf02f;
+  --accent-ink: #46700c;
+  --accent-fg: #0a0a0b;
+  --accent-soft: rgb(140 200 20 / 0.16);
+  --danger: #b4321f;
+  --shadow-panel: 0 20px 50px rgb(9 9 11 / 0.1);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-canvas: var(--bg);
+  --color-canvas-2: var(--bg-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--text);
+  --color-ink-2: var(--text-2);
+  --color-ink-3: var(--text-3);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-weight: 500;
+    letter-spacing: -0.03em;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 999px;
+    border: 2px solid var(--bg);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-3);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Panel dasar: 16px radius, garis tipis, tanpa bayangan hitam murni. */
+  .panel {
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+  }
+
+  /* Grain hanya pada lapisan fixed + pointer-events-none (hemat GPU). */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .hairline {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--line-strong) 18%, var(--line-strong) 82%, transparent);
+  }
+}
+
+@keyframes noisy-sweep {
+  0% {
+    transform: translateY(-110%);
+  }
+  100% {
+    transform: translateY(210%);
+  }
+}
+
+@keyframes noisy-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+/* ===========================================================
+   Layar-muat: wordmark dengan pecahan warna (chromatic split).
+   Pecahan hanya memakai aksen + tinta, jadi tidak menambah warna
+   kedua ke palet halaman. Dimatikan saat prefers-reduced-motion.
+   =========================================================== */
+.glitch {
+  position: relative;
+  color: var(--text);
+}
+.glitch::before,
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  clip-path: inset(0 0 0 0);
+}
+.glitch::before {
+  color: var(--accent);
+  transform: translate3d(-2px, 0, 0);
+  mix-blend-mode: screen;
+  animation: noisy-glitch-a 2.4s infinite steps(2, end);
+}
+.glitch::after {
+  color: var(--text);
+  opacity: 0.85;
+  transform: translate3d(2px, 0, 0);
+  mix-blend-mode: screen;
+  animation: noisy-glitch-b 3.1s infinite steps(2, end);
+}
+
+@keyframes noisy-glitch-a {
+  0%,
+  62%,
+  100% {
+    transform: translate3d(-2px, 0, 0);
+    clip-path: inset(0 0 0 0);
+  }
+  66% {
+    transform: translate3d(-5px, -1px, 0);
+    clip-path: inset(12% 0 48% 0);
+  }
+  72% {
+    transform: translate3d(-2px, 1px, 0);
+    clip-path: inset(60% 0 8% 0);
+  }
+}
+@keyframes noisy-glitch-b {
+  0%,
+  58%,
+  100% {
+    transform: translate3d(2px, 0, 0);
+    clip-path: inset(0 0 0 0);
+  }
+  64% {
+    transform: translate3d(5px, 1px, 0);
+    clip-path: inset(52% 0 20% 0);
+  }
+  70% {
+    transform: translate3d(2px, -1px, 0);
+    clip-path: inset(18% 0 62% 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glitch::before,
+  .glitch::after {
+    display: none;
+  }
+}

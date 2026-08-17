@@ -1,0 +1,42 @@
+{
+  "name": "noisy-upscaler",
+  "version": "1.0.0",
+  "description": "Noisy Uspcaler - image upscaler 4x berbasis AI dengan dua engine dan fallback otomatis",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n server,web -c magenta,cyan \"node server/index.js\" \"vite\"",
+    "server": "node server/index.js",
+    "build": "vite build",
+    "preview": "npm run build && node server/index.js",
+    "benchmark": "node scripts/benchmark-engines.cjs"
+  },
+  "keywords": [
+    "image-upscaler",
+    "ai",
+    "react",
+    "vite"
+  ],
+  "license": "ISC",
+  "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "axios": "^1.19.0",
+    "crypto-js": "^4.2.0",
+    "express": "^5.2.1",
+    "form-data": "^4.0.6",
+    "motion": "^13.1.0",
+    "multer": "^2.2.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.0.5",
+    "concurrently": "^10.0.5",
+    "playwright": "^1.62.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.1"
+  }
+}
