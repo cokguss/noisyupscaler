@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import Nav from '../components/Nav.jsx';
 import Hero from '../components/Hero.jsx';
@@ -12,21 +12,49 @@ import Loader from '../components/Loader.jsx';
 import { useLang } from '../lib/i18n.jsx';
 
 /**
- * Layar-muat hanya sekali per pemuatan halaman. Bendera modul ini bertahan
- * selama SPA hidup, jadi kembali dari /terms atau /privacy tidak memicunya lagi.
+ * Layar-muat hanya tampil sekali per sesi tab, disimpan di sessionStorage:
+ *   - refresh berkali-kali di tab yang sama TIDAK memicunya lagi,
+ *   - tab baru / jendela baru / browser baru tetap menampilkannya
+ *     (sessionStorage bersih untuk tiap konteks tab/jendela),
+ *   - kembali dari /terms atau /privacy juga tidak memicunya.
+ * Try/catch mengamankan mode privat / iframe yang memblokir storage —
+ * bila storage tak tersedia, loader tampil tiap muat (fallback aman).
  */
-let introShown = false;
+const INTRO_KEY = 'noisy-intro-shown';
+
+function introAlreadyShown() {
+  try {
+    return sessionStorage.getItem(INTRO_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markIntroShown() {
+  try {
+    sessionStorage.setItem(INTRO_KEY, '1');
+  } catch {
+    /* abaikan: storage diblokir, biarkan loader tampil lagi lain kali */
+  }
+}
 
 export default function Landing() {
   const { t } = useLang();
-  const [loading, setLoading] = useState(!introShown);
+  const [loading, setLoading] = useState(() => !introAlreadyShown());
+
+  // Tandai segera begitu loader diputuskan tampil, jadi refresh di TENGAH
+  // intro pun langsung melewatinya, bukan hanya setelah animasi selesai.
+  useEffect(() => {
+    if (loading) markIntroShown();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
       {loading && (
         <Loader
           onDone={() => {
-            introShown = true;
+            markIntroShown();
             setLoading(false);
           }}
         />
