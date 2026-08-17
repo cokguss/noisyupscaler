@@ -37,17 +37,24 @@ async function createJob(buffer, scale) {
  * @param {Buffer} buffer gambar sumber
  * @param {number} scale 2 atau 4
  * @param {(pct:number, code:string)=>void} onProgress kode tahap, diterjemahkan di frontend
+ * @param {number} deadline stempel waktu absolut (Date.now()) batas polling,
+ *   dikirim orkestrator agar total rantai fallback tetap di bawah batas Vercel.
  * @returns {Promise<{url:string, engine:string}>}
  */
-export async function upscaleSwiftspeed(buffer, scale, onProgress = () => {}) {
+export async function upscaleSwiftspeed(buffer, scale, onProgress = () => {}, deadline = Date.now() + 150_000) {
   onProgress(12, 'sending');
   const jobId = await createJob(buffer, scale);
 
   onProgress(26, 'queue');
-  const maxAttempts = 30;
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  // Berbasis jam dinding, bukan hitungan percobaan (lihat catatan di live3d.js):
+  // latensi tiap poll berubah-ubah, jadi deadline absolut jauh lebih andal.
+  const pollStart = Date.now();
+  const EXPECT_MS = 110_000; // Swiftspeed lebih lambat; perkiraan untuk progress bar
+
+  for (let attempt = 0; Date.now() < deadline; attempt++) {
     await sleep(2500);
+    if (Date.now() >= deadline) break;
 
     let data;
     try {
@@ -71,7 +78,7 @@ export async function upscaleSwiftspeed(buffer, scale, onProgress = () => {}) {
       throw new Error('Engine melaporkan proses gagal');
     }
 
-    const pct = 30 + Math.round((attempt / maxAttempts) * 55);
+    const pct = 30 + Math.round(Math.min((Date.now() - pollStart) / EXPECT_MS, 1) * 55);
     onProgress(Math.min(pct, 85), 'reconstruct');
   }
 

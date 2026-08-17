@@ -144,18 +144,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {Buffer} buffer gambar sumber
  * @param {number} scale 2 atau 4
  * @param {(pct:number, code:string)=>void} onProgress kode tahap, diterjemahkan di frontend
+ * @param {number} deadline stempel waktu absolut (Date.now()) batas polling.
+ *   Dikirim oleh orkestrator agar total rantai fast->quality tetap di bawah
+ *   batas durasi fungsi Vercel. Foto beresolusi besar (mis. 4000x3000 dari
+ *   kamera ponsel) butuh ~90 dtk — jauh di atas batas lama ~60 dtk, itulah
+ *   sebab galat "semua engine gagal" pada sebagian foto.
  * @returns {Promise<{url:string, engine:string}>}
  */
-export async function upscaleLive3d(buffer, scale, onProgress = () => {}) {
+export async function upscaleLive3d(buffer, scale, onProgress = () => {}, deadline = Date.now() + 120_000) {
   onProgress(12, 'sending');
   const { path, fp } = await uploadImage(buffer, 'input.jpg');
 
   onProgress(26, 'queue');
   const taskId = await createTask(path, scale, fp);
 
-  const maxAttempts = 20;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  // Polling berbasis JAM DINDING, bukan hitungan percobaan: tiap poll membayar
+  // latensi jaringan yang berubah-ubah, jadi "N percobaan" tak pernah setara
+  // dengan durasi nyata. Deadline absolut membuat batasnya dapat diprediksi.
+  const pollStart = Date.now();
+  const EXPECT_MS = 90_000; // perkiraan durasi untuk mengisi progress bar mulus
+  for (let attempt = 0; Date.now() < deadline; attempt++) {
     await sleep(attempt === 0 ? 2500 : 3000);
+    if (Date.now() >= deadline) break;
 
     const data = await checkTask(taskId, fp);
 
@@ -166,7 +176,7 @@ export async function upscaleLive3d(buffer, scale, onProgress = () => {}) {
     }
     if (data.status === 3) throw new Error('Engine melaporkan proses gagal');
 
-    const pct = 30 + Math.round((attempt / maxAttempts) * 55);
+    const pct = 30 + Math.round(Math.min((Date.now() - pollStart) / EXPECT_MS, 1) * 55);
     onProgress(Math.min(pct, 85), 'reconstruct');
   }
 

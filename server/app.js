@@ -139,14 +139,37 @@ export function createApp() {
       let outcome = null;
       const failures = [];
 
+      // Anggaran waktu berbasis jam dinding agar rantai fallback (engine 1 lalu
+      // engine 2) TIDAK PERNAH melewati batas 300 dtk fungsi Vercel. Semua
+      // polling wajib selesai pada POLL_DEADLINE; sisa ~60 dtk dipakai untuk
+      // mengunduh hasil dari CDN, meng-encode base64, dan mengalirkannya ke klien.
+      // Terbukti lewat probe engine sungguhan: foto 4000x3000 dari kamera ponsel
+      // butuh ~114 dtk di Live3D — jauh di atas batas lama ~60 dtk; itulah sebab
+      // galat "semua engine gagal" pada sebagian foto. Kasus terburuk (polling
+      // penuh 210 dtk + unduh ~60 dtk) ~270 dtk, menyisakan margin ~30 dtk.
+      const POLL_DEADLINE = started + 210_000;
+
       for (const [index, key] of order.entries()) {
         const engine = ENGINES[key];
+        const isLast = index === order.length - 1;
+        // Engine PRIMER (pilihan pengguna) diberi anggaran terbesar (150 dtk)
+        // karena itulah yang biasanya benar-benar memproses gambar — 150 dtk
+        // memberi kelonggaran atas 114 dtk terukur untuk foto besar. Engine
+        // terakhir memakai seluruh sisa anggaran hingga POLL_DEADLINE. Menaikkan
+        // jatah engine primer TIDAK menambah total terburuk: POLL_DEADLINE tetap
+        // jadi plafon absolut semua polling, jadi ini hanya membagi ulang waktu.
+        const deadline = isLast
+          ? POLL_DEADLINE
+          : Math.min(Date.now() + 150_000, POLL_DEADLINE - 60_000);
         if (index > 0) {
           send({ type: 'progress', pct: 10, code: 'switching', engineLabel: engine.label });
         }
         try {
-          outcome = await engine.run(source, scale, (pct, code) =>
-            send({ type: 'progress', pct, code }),
+          outcome = await engine.run(
+            source,
+            scale,
+            (pct, code) => send({ type: 'progress', pct, code }),
+            deadline,
           );
           break;
         } catch (err) {
@@ -157,7 +180,12 @@ export function createApp() {
 
       if (!outcome) {
         console.error('[upscale] semua engine gagal:', failures.join(' | '));
-        throw new AppError('allFailed');
+        // Bila SEMUA kegagalan murni karena kehabisan waktu (bukan galat proses
+        // sungguhan), beri pesan jujur & dapat ditindaklanjuti alih-alih
+        // "coba lagi sebentar" yang menyesatkan — mencoba ulang gambar sebesar
+        // itu akan gagal lagi dengan cara yang sama.
+        const allTimeouts = failures.every((f) => f.includes('Waktu tunggu engine habis'));
+        throw new AppError(allTimeouts ? 'timedOut' : 'allFailed');
       }
 
       // Ambil hasil dari engine untuk diukur dimensi & ukuran nyatanya,

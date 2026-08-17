@@ -31,7 +31,7 @@ async function run({ scale, engine }) {
     for (const line of lines) {
       if (!line.trim()) continue;
       const event = JSON.parse(line);
-      if (event.type === 'progress') notes.push(event.note);
+      if (event.type === 'progress') notes.push(event.code);
       if (event.type === 'done') done = event;
       if (event.type === 'error') error = event.message;
     }
@@ -48,7 +48,7 @@ function assert(condition, message) {
   const fault = process.env.NOISY_FAULT;
   console.log(`Server fault injection: ${fault || 'nonaktif'}\n`);
 
-  if (fault === 'live3d') {
+  if (fault === 'fast') {
     console.log('[Fallback] Engine cepat dipaksa gagal, harus beralih ke Swiftspeed');
     const r = await run({ scale: 4, engine: 'fast' });
     if (!r.done) {
@@ -61,7 +61,7 @@ function assert(condition, message) {
     assert(r.done.fellBack === true, 'hasil ditandai sebagai fallback');
     assert(r.done.engine === 'swiftspeed', 'engine cadangan yang dipakai adalah Swiftspeed');
     assert(
-      r.notes.some((n) => /cadangan/i.test(n)),
+      r.notes.some((n) => n === 'switching'),
       'pengguna diberi tahu saat beralih engine',
     );
     assert(r.done.output.width === 1600, 'hasil fallback tetap 4x');
