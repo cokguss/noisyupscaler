@@ -48,6 +48,35 @@ function renderError(t, error) {
   return api || t.studio.errors.generic;
 }
 
+/**
+ * Ubah data URL base64 menjadi Blob secara SINKRON. Sinkron itu penting:
+ * navigator.share harus dipanggil di dalam gerakan pengguna yang sama tanpa
+ * jeda `await`, kalau tidak iOS menolaknya (NotAllowedError).
+ */
+function dataUrlToBlob(dataUrl) {
+  const comma = dataUrl.indexOf(',');
+  const head = dataUrl.slice(0, comma);
+  const body = dataUrl.slice(comma + 1);
+  const mime = head.match(/data:([^;]+)/)?.[1] || 'image/png';
+  const binary = atob(body);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+/** Unduh Blob lewat objectURL sementara — lebih andal daripada data URL besar. */
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 15_000);
+}
+
 export default function Studio() {
   const reduceMotion = useReducedMotion();
   const { t, lang } = useLang();
@@ -187,6 +216,41 @@ export default function Studio() {
   };
 
   const working = status === 'working';
+
+  /**
+   * Simpan hasil ke perangkat. Data URL + atribut `download` pada <a> TIDAK
+   * bekerja di banyak browser mobile (khususnya iOS Safari mengabaikannya dan
+   * malah membuka gambar inline), jadi hasil tidak pernah tersimpan.
+   *
+   * Solusi: ubah ke Blob, lalu bila perangkat bisa berbagi berkas (iOS/Android)
+   * buka lembar "Simpan Gambar/ke File" bawaan lewat Web Share API; selain itu
+   * unduh lewat objectURL yang jauh lebih andal daripada data URL raksasa.
+   */
+  const saveResult = (event) => {
+    if (!result?.url) return;
+    // Cegah navigasi anchor hanya bila kita memang menangani sendiri.
+    let blob;
+    try {
+      blob = dataUrlToBlob(result.url);
+    } catch {
+      return; // biarkan perilaku <a> bawaan yang jalan
+    }
+    event.preventDefault();
+
+    const filename = result.downloadName || 'noisy-upscaled.png';
+    const file = new File([blob], filename, { type: blob.type });
+
+    // Web Share API dengan berkas = jalur "Simpan ke Foto/File" yang andal di mobile.
+    if (navigator.canShare?.({ files: [file] }) && typeof navigator.share === 'function') {
+      navigator.share({ files: [file] }).catch((err) => {
+        // Pengguna membatalkan sheet: jangan paksa unduh. Selain itu, fallback.
+        if (err?.name !== 'AbortError') downloadBlob(blob, filename);
+      });
+      return;
+    }
+
+    downloadBlob(blob, filename);
+  };
 
   return (
     <section id="studio" className="relative scroll-mt-24 py-20 md:py-28">
@@ -488,6 +552,7 @@ export default function Studio() {
                     <a
                       href={result.url}
                       download={result.downloadName}
+                      onClick={saveResult}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-accent px-5 py-3 text-sm whitespace-nowrap text-accent-ink transition-colors hover:bg-accent-soft"
                     >
                       <DownloadSimple size={16} weight="bold" />
