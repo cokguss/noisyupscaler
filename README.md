@@ -109,7 +109,7 @@ Aplikasi ini dirancang stateless, jadi frontend statis dan API serverless bisa s
 2. Biarkan pengaturan bawaan — `vercel.json` sudah mengatur build (`vite build` → `dist/`), fungsi serverless (`api/index.js`), dan rewrite untuk SPA + `/api/*`.
 3. Deploy. Selesai.
 
-> ⚠️ **Catatan paket Hobby (gratis):** `maxDuration` diset `60` detik. Engine **Cepat** (bawaan, ~7–11 dtk) aman. Engine **Kualitas maksimal** (~30–80 dtk) sesekali bisa melewati batas ini dan timeout — fallback otomatis akan menanganinya. Bila upgrade ke Pro, naikkan `maxDuration` di `vercel.json` menjadi `300`.
+> ⚠️ **Catatan paket Hobby (gratis):** `maxDuration` diset `300` detik (batas maksimal paket Hobby dengan fluid compute). Ini penting: engine **Kualitas maksimal** butuh ~30–80 detik di server, dan pada perangkat mobile waktu unggah foto ikut terhitung — bila total melewati batas, Vercel menghentikan fungsi di tengah jalan sebelum hasil terkirim (galat "koneksi terputus"). Nilai `300` memberi ruang aman. Jangan menurunkannya di bawah ~120 detik.
 
 ## ⚠️ Catatan
 
