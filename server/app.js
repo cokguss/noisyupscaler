@@ -92,11 +92,20 @@ export function createApp() {
     let closed = false;
     res.on('close', () => {
       closed = true;
+      clearInterval(heartbeat);
     });
 
     const send = (payload) => {
       if (!closed && !res.writableEnded) res.write(JSON.stringify(payload) + '\n');
     };
+
+    // Detak jantung: sebagian jaringan seluler dan proxy memutus koneksi yang
+    // tampak "diam" meski permintaan masih berjalan. Selama proses ada jeda
+    // tanpa progres (unggah gambar ke engine, lalu unduh + encode hasil), dan
+    // di situlah koneksi mobile sering terputus -> galat "disconnected".
+    // Baris ping tipis tiap 10 detik menjaga koneksi tetap hidup. Klien
+    // mengabaikan baris bertipe 'ping' (bukan 'progress'/'input'/'done').
+    const heartbeat = setInterval(() => send({ type: 'ping' }), 10_000);
 
     const started = Date.now();
 
@@ -190,6 +199,7 @@ export function createApp() {
         message: err.message || 'Proses gagal',
       });
     } finally {
+      clearInterval(heartbeat);
       if (!res.writableEnded) res.end();
     }
   });

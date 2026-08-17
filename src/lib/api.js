@@ -9,12 +9,33 @@
  */
 
 export async function upscale({ file, sampleUrl, scale = 4, engine = 'fast', signal, onEvent }) {
+  if (!file && !sampleUrl) throw new UpscaleError('noImage');
+
+  // Koneksi seluler kadang terputus di tengah proses (NAT operator memutus
+  // koneksi yang diam, sinyal berkedip, atau tab ditangguhkan). Karena
+  // memproses ulang bersifat idempoten dan aman, coba sekali lagi bila stream
+  // putus SEBELUM hasil tiba. Galat eksplisit dari server tidak diulang.
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await streamUpscale({ file, sampleUrl, scale, engine, signal, onEvent });
+    } catch (err) {
+      // Jangan ulangi bila pengguna membatalkan atau galatnya deterministik.
+      if (err.name === 'AbortError' || signal?.aborted) throw err;
+      const retriable = err instanceof UpscaleError && err.code === 'disconnected';
+      if (!retriable || attempt === 1) throw err;
+      lastError = err;
+    }
+  }
+  throw lastError; // tak akan tercapai; jaga-jaga
+}
+
+async function streamUpscale({ file, sampleUrl, scale, engine, signal, onEvent }) {
   const body = new FormData();
   body.append('scale', String(scale));
   body.append('engine', engine);
   if (file) body.append('image', file);
-  else if (sampleUrl) body.append('sampleUrl', sampleUrl);
-  else throw new UpscaleError('noImage');
+  else body.append('sampleUrl', sampleUrl);
 
   const res = await fetch('/api/upscale', { method: 'POST', body, signal });
 
@@ -49,18 +70,27 @@ export async function upscale({ file, sampleUrl, scale = 4, engine = 'fast', sig
       } catch {
         continue;
       }
+      // Detak jantung dari server hanya untuk menjaga koneksi hidup; abaikan.
+      if (event.type === 'ping') continue;
       if (event.type === 'error') throw new UpscaleError(event.code || 'generic');
       if (event.type === 'done') result = event;
       onEvent?.(event);
     }
   };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    flush(decoder.decode(value, { stream: true }));
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      flush(decoder.decode(value, { stream: true }));
+    }
+    flush(decoder.decode());
+  } catch (err) {
+    // Pembacaan stream gagal di tengah jalan (koneksi putus di mobile).
+    if (err instanceof UpscaleError) throw err;
+    if (err?.name === 'AbortError' || signal?.aborted) throw err;
+    throw new UpscaleError('disconnected');
   }
-  flush(decoder.decode());
 
   if (!result) throw new UpscaleError('disconnected');
   return result;
