@@ -69,6 +69,8 @@ const DICT = {
       clear: 'Kosongkan',
       fellBack: (label) =>
         `Engine pilihanmu sedang tidak merespons, jadi hasil ini diproses oleh ${label}.`,
+      optimized: (w, h) =>
+        `Foto ini berukuran sangat besar, jadi otomatis diperkecil ke ${w} x ${h} px lebih dulu supaya proses tidak melewati batas waktu. Hasil di bawah diperbesar dari ukuran itu.`,
       stat: {
         resOrig: 'Resolusi asli',
         resOut: 'Resolusi hasil',
@@ -315,6 +317,8 @@ const DICT = {
       clear: 'Clear',
       fellBack: (label) =>
         `Your chosen engine wasn't responding, so this result was processed by ${label}.`,
+      optimized: (w, h) =>
+        `This photo was very large, so it was automatically resized to ${w} x ${h} px first to keep the process within the time limit. The result below is upscaled from that size.`,
       stat: {
         resOrig: 'Original resolution',
         resOut: 'Output resolution',

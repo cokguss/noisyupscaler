@@ -92,6 +92,7 @@ export default function Studio() {
   const [progress, setProgress] = useState({ pct: 0, code: '', engineLabel: '' });
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null); // { code, size?, status? }
+  const [optimized, setOptimized] = useState(null); // { from, to } bila diperkecil
   const [dragging, setDragging] = useState(false);
 
   const releaseObjectUrl = () => {
@@ -112,6 +113,7 @@ export default function Studio() {
   const resetOutput = () => {
     setResult(null);
     setError(null);
+    setOptimized(null);
     setStatus('idle');
     setProgress({ pct: 0, code: '', engineLabel: '' });
   };
@@ -184,6 +186,7 @@ export default function Studio() {
     setStatus('working');
     setError(null);
     setResult(null);
+    setOptimized(null);
     setProgress({ pct: 4, code: 'preparing', engineLabel: '' });
 
     try {
@@ -198,6 +201,7 @@ export default function Studio() {
             setProgress({ pct: event.pct, code: event.code, engineLabel: event.engineLabel });
           }
           if (event.type === 'input') setSourceDims(event.input);
+          if (event.type === 'optimized') setOptimized(event);
         },
       });
       setResult(done);
@@ -390,6 +394,13 @@ export default function Studio() {
                       <Stat label={t.studio.stat.sizeOut} value={formatBytes(result.output?.bytes, lang)} />
                       <Stat label={t.studio.stat.time} value={formatSeconds(result.ms, lang)} />
                     </dl>
+
+                    {optimized && (
+                      <p className="flex items-start gap-2 rounded-[10px] bg-surface-2 p-3 text-xs leading-relaxed text-ink-2">
+                        <WarningCircle size={15} className="mt-0.5 shrink-0 text-accent-ink" />
+                        {t.studio.optimized(optimized.to.width, optimized.to.height)}
+                      </p>
+                    )}
 
                     {result.fellBack && (
                       <p className="flex items-start gap-2 rounded-[10px] bg-surface-2 p-3 text-xs leading-relaxed text-ink-2">

@@ -8,8 +8,28 @@
  * jadi backend tetap netral bahasa.
  */
 
+// Plafon jumlah piksel hasil. Engine upscaler berjalan LEBIH LAMBAT & lebih
+// bervariasi dari data center Vercel (iad1) dibanding mesin lokal; foto ponsel
+// biasa (mis. 1809x2560 = 4,6 MP) di 4x menghasilkan ~74 MP yang melewati batas
+// 300 dtk fungsi Vercel -> galat "semua engine gagal / kehabisan waktu".
+// Terbukti di produksi: memperkecil input agar output <= 32 MP membuat kasus
+// yang tadi timeout (218 dtk) selesai dalam ~66 dtk.
+const MAX_OUTPUT_PIXELS = 32_000_000;
+
 export async function upscale({ file, sampleUrl, scale = 4, engine = 'fast', signal, onEvent }) {
   if (!file && !sampleUrl) throw new UpscaleError('noImage');
+
+  // Perkecil di sisi klien bila perlu — SEKALI di luar loop retry agar tidak
+  // dihitung ulang saat koneksi yang putus dicoba lagi. Hanya berlaku untuk
+  // berkas unggahan; contoh (sampleUrl) sudah kecil.
+  let upload = file;
+  let uploadName;
+  if (file) {
+    const prepared = await prepareUpload(file, scale);
+    upload = prepared.blob;
+    uploadName = prepared.name;
+    if (prepared.downscaled) onEvent?.({ type: 'optimized', from: prepared.from, to: prepared.to });
+  }
 
   // Koneksi seluler kadang terputus di tengah proses (NAT operator memutus
   // koneksi yang diam, sinyal berkedip, atau tab ditangguhkan). Karena
@@ -18,7 +38,15 @@ export async function upscale({ file, sampleUrl, scale = 4, engine = 'fast', sig
   let lastError;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return await streamUpscale({ file, sampleUrl, scale, engine, signal, onEvent });
+      return await streamUpscale({
+        file: upload,
+        fileName: uploadName,
+        sampleUrl,
+        scale,
+        engine,
+        signal,
+        onEvent,
+      });
     } catch (err) {
       // Jangan ulangi bila pengguna membatalkan atau galatnya deterministik.
       if (err.name === 'AbortError' || signal?.aborted) throw err;
@@ -30,12 +58,82 @@ export async function upscale({ file, sampleUrl, scale = 4, engine = 'fast', sig
   throw lastError; // tak akan tercapai; jaga-jaga
 }
 
-async function streamUpscale({ file, sampleUrl, scale, engine, signal, onEvent }) {
+/**
+ * Perkecil gambar di sisi klien bila hasil (input x skala^2) akan melebihi
+ * MAX_OUTPUT_PIXELS. Selain membuat proses selesai dalam batas waktu Vercel,
+ * ini memangkas ukuran unggahan drastis (mis. 2,97 MB -> 340 KB), yang juga
+ * menurunkan risiko koneksi seluler terputus saat mengunggah.
+ *
+ * createImageBitmap dengan imageOrientation 'from-image' MEMBAKAR orientasi
+ * EXIF ke piksel, jadi foto ponsel yang berorientasi tidak jadi miring.
+ *
+ * Kalau apa pun gagal (createImageBitmap tak tersedia, kanvas gagal, dsb.),
+ * kembalikan berkas asli — memperkecil itu penyempurnaan, bukan syarat wajib.
+ *
+ * @returns {Promise<{blob: Blob, name?: string, downscaled: boolean,
+ *   from?: {width:number,height:number}, to?: {width:number,height:number}}>}
+ */
+async function prepareUpload(file, scale) {
+  const original = { blob: file, name: file.name, downscaled: false };
+  if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') {
+    return original;
+  }
+  let bmp;
+  try {
+    bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const inW = bmp.width;
+    const inH = bmp.height;
+    const outPixels = inW * inH * scale * scale;
+    if (outPixels <= MAX_OUTPUT_PIXELS) return original;
+
+    // Perkecil input agar (input x skala^2) tepat menyentuh plafon.
+    const factor = Math.sqrt(MAX_OUTPUT_PIXELS / outPixels);
+    const w = Math.max(1, Math.round(inW * factor));
+    const h = Math.max(1, Math.round(inH * factor));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return original;
+    ctx.imageSmoothingQuality = 'high';
+    // Latar putih dulu: JPEG tak punya alpha, jadi area transparan pada PNG
+    // akan jadi hitam bila tak diisi. Putih adalah default yang paling aman.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bmp, 0, 0, w, h);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (!blob) return original;
+
+    const base = (file.name || 'gambar').replace(/\.[^.]+$/, '');
+    return {
+      blob,
+      name: `${base}.jpg`,
+      downscaled: true,
+      from: { width: inW, height: inH },
+      to: { width: w, height: h },
+    };
+  } catch {
+    return original;
+  } finally {
+    bmp?.close?.();
+  }
+}
+
+async function streamUpscale({ file, fileName, sampleUrl, scale, engine, signal, onEvent }) {
   const body = new FormData();
   body.append('scale', String(scale));
   body.append('engine', engine);
-  if (file) body.append('image', file);
-  else body.append('sampleUrl', sampleUrl);
+  // Sertakan nama hanya bila kita punya (blob hasil perkecilan). Untuk File
+  // asli, biarkan FormData memakai file.name; meneruskan undefined bisa jadi
+  // string "undefined" di sebagian mesin.
+  if (file) {
+    if (fileName) body.append('image', file, fileName);
+    else body.append('image', file);
+  } else {
+    body.append('sampleUrl', sampleUrl);
+  }
 
   const res = await fetch('/api/upscale', { method: 'POST', body, signal });
 
